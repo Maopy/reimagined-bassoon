@@ -4,10 +4,7 @@
     "browser": true,
     "es2024": true
   },
-  "plugins": [
-    "react",
-    "typescript"
-  ],
+  "plugins": ["react", "node", "typescript"],
   "categories": {
     "correctness": "error" 
   },
