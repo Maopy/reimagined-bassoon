@@ -8,6 +8,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem
 } from '@/components/ui/sidebar'
+import { useNavigationStore } from '@/stores/navigation'
 
 export function NavSecondary({
   items,
@@ -15,10 +16,12 @@ export function NavSecondary({
 }: {
   items: {
     title: string
-    url: string
+    id: string
     icon: LucideIcon
   }[]
 } & React.ComponentPropsWithoutRef<typeof SidebarGroup>) {
+  const { setCurrentRoute } = useNavigationStore()
+
   return (
     <SidebarGroup {...props}>
       <SidebarGroupContent>
@@ -26,10 +29,17 @@ export function NavSecondary({
           {items.map(item => (
             <SidebarMenuItem key={item.title}>
               <SidebarMenuButton asChild size='sm'>
-                <a href={item.url}>
+                <button
+                  className='flex w-full items-center text-left'
+                  onClick={() => {
+                    if (item.id) {
+                      setCurrentRoute(item.id)
+                    }
+                  }}
+                >
                   <item.icon />
                   <span>{item.title}</span>
-                </a>
+                </button>
               </SidebarMenuButton>
             </SidebarMenuItem>
           ))}

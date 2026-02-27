@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Tauri binaries downloaded dynamically
+src-tauri/binaries/

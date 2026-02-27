@@ -2,10 +2,10 @@
 
 import { ChevronRight, type LucideIcon } from 'lucide-react'
 
+import { useNavigationStore } from '@/stores/navigation'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import {
   SidebarGroup,
-  SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuAction,
   SidebarMenuButton,
@@ -20,27 +20,36 @@ export function NavMain({
 }: {
   items: {
     title: string
-    url: string
+    id: string
     icon: LucideIcon
     isActive?: boolean
     items?: {
       title: string
-      url: string
+      id: string
     }[]
   }[]
 }) {
+  const { setCurrentRoute } = useNavigationStore()
+
   return (
     <SidebarGroup>
-      <SidebarGroupLabel>Platform</SidebarGroupLabel>
       <SidebarMenu>
         {items.map(item => (
           <Collapsible key={item.title} asChild defaultOpen={item.isActive}>
             <SidebarMenuItem>
               <SidebarMenuButton asChild tooltip={item.title}>
-                <a href={item.url}>
+                <button
+                  className='flex w-full items-center text-left'
+                  onClick={e => {
+                    e.preventDefault()
+                    if (!item.items?.length && item.id) {
+                      setCurrentRoute(item.id)
+                    }
+                  }}
+                >
                   <item.icon />
                   <span>{item.title}</span>
-                </a>
+                </button>
               </SidebarMenuButton>
               {item.items?.length ? (
                 <>
@@ -55,9 +64,15 @@ export function NavMain({
                       {item.items?.map(subItem => (
                         <SidebarMenuSubItem key={subItem.title}>
                           <SidebarMenuSubButton asChild>
-                            <a href={subItem.url}>
+                            <button
+                              className='flex w-full items-center text-left'
+                              onClick={e => {
+                                e.preventDefault()
+                                setCurrentRoute(subItem.id)
+                              }}
+                            >
                               <span>{subItem.title}</span>
-                            </a>
+                            </button>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
                       ))}
