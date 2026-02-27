@@ -61,3 +61,57 @@ pub async fn cmd_get_video_info(app: AppHandle, url: String) -> Result<String, S
     // Return the raw JSON string from yt-dlp, frontend will parse it
     Ok(output)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn test_video_info_deserialization() {
+        // Given a sample output mimicking yt-dlp's minimal JSON structure
+        let mocked_output = json!({
+            "id": "dQw4w9WgXcQ",
+            "title": "Rick Astley - Never Gonna Give You Up",
+            "thumbnail": "https://example.com/thumb.jpg",
+            "duration": 212,
+            "uploader": "Rick Astley"
+        });
+
+        let json_str = mocked_output.to_string();
+
+        // When deserializing into VideoInfo
+        let parsed: VideoInfo =
+            serde_json::from_str(&json_str).expect("Failed to deserialize JSON");
+
+        // Then it should map correctly
+        assert_eq!(parsed.id, "dQw4w9WgXcQ");
+        assert_eq!(parsed.title, "Rick Astley - Never Gonna Give You Up");
+        assert_eq!(
+            parsed.thumbnail,
+            Some("https://example.com/thumb.jpg".to_string())
+        );
+        assert_eq!(parsed.duration, Some(212));
+        assert_eq!(parsed.uploader, Some("Rick Astley".to_string()));
+    }
+
+    #[test]
+    fn test_video_info_partial_deserialization() {
+        // Given JSON missing optional fields
+        let mocked_output = json!({
+            "id": "12345",
+            "title": "Unknown Video"
+        });
+
+        let json_str = mocked_output.to_string();
+
+        // When
+        let parsed: VideoInfo =
+            serde_json::from_str(&json_str).expect("Failed to deserialize JSON");
+
+        // Then mandatory fields match and optional fields are None
+        assert_eq!(parsed.id, "12345");
+        assert_eq!(parsed.duration, None);
+        assert_eq!(parsed.uploader, None);
+    }
+}
