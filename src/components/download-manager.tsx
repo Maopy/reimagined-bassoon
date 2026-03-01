@@ -1,57 +1,91 @@
-import { useState } from 'react'
-import { getVideoInfo } from '@/lib/api/youtube.service'
-import type { VideoInfo } from '@/types/youtube'
+import { useState, useCallback } from 'react'
+import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
+import { useVideoInfo } from '@/hooks/use-video-info'
+import { isValidYouTubeUrl } from '@/lib/validators'
+import { getErrorMessage } from '@/lib/validators'
 
 export function DownloadManager() {
   const [url, setUrl] = useState('')
-  const [videoInfo, setVideoInfo] = useState<VideoInfo | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
-  const [errorMsg, setErrorMsg] = useState('')
+  const [validationError, setValidationError] = useState('')
 
-  const handleFetch = async () => {
-    if (!url.trim()) return
-    setIsLoading(true)
-    setErrorMsg('')
-    try {
-      const info = await getVideoInfo(url)
-      setVideoInfo(info)
-    } catch (e: any) {
-      console.error(e)
-      setErrorMsg(e.toString())
-    } finally {
-      setIsLoading(false)
+  // 使用 React Query 获取视频信息
+  const {
+    data: videoInfo,
+    isLoading,
+    error: fetchError,
+    refetch,
+  } = useVideoInfo(url)
+
+  // 处理获取视频信息
+  const handleFetch = useCallback(() => {
+    const trimmedUrl = url.trim()
+
+    if (!trimmedUrl) {
+      setValidationError('请输入 YouTube 视频链接')
+      return
     }
-  }
+
+    if (!isValidYouTubeUrl(trimmedUrl)) {
+      setValidationError('请输入有效的 YouTube 视频链接')
+      return
+    }
+
+    setValidationError('')
+    refetch()
+  }, [url, refetch])
+
+  // 处理键盘事件
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === 'Enter') {
+        handleFetch()
+      }
+    },
+    [handleFetch]
+  )
+
+  // 清除输入时清除错误
+  const handleUrlChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setUrl(e.target.value)
+    if (validationError) {
+      setValidationError('')
+    }
+  }, [validationError])
+
+  // 合并验证错误和获取错误
+  const displayError = validationError || (fetchError ? getErrorMessage(fetchError) : '')
 
   return (
     <div className='flex flex-1 flex-col gap-4 p-4'>
       <div className='bg-card text-card-foreground rounded-xl border shadow-sm p-6'>
-        <h2 className='text-2xl font-semibold leading-none tracking-tight mb-4'>YouTube 下载器</h2>
-        <p className='text-muted-foreground text-sm mb-6'>输入 YouTube 视频链接进行解析和下载</p>
+        <h2 className='text-2xl font-semibold leading-none tracking-tight mb-4'>
+          YouTube 下载器
+        </h2>
+        <p className='text-muted-foreground text-sm mb-6'>
+          输入 YouTube 视频链接进行解析和下载
+        </p>
 
         {/* Input Area */}
         <div className='flex gap-2 mb-8'>
-          <input
+          <Input
             type='text'
             value={url}
-            onChange={e => setUrl(e.target.value)}
+            onChange={handleUrlChange}
+            onKeyDown={handleKeyDown}
             disabled={isLoading}
-            onKeyDown={e => e.key === 'Enter' && handleFetch()}
             placeholder='https://www.youtube.com/watch?v=...'
-            className='flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50'
+            className='flex-1'
           />
-          <button
-            onClick={handleFetch}
-            disabled={isLoading}
-            className='inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2'
-          >
+          <Button onClick={handleFetch} disabled={isLoading}>
             {isLoading ? '解析中...' : '解析'}
-          </button>
+          </Button>
         </div>
 
-        {errorMsg && (
+        {/* Error Message */}
+        {displayError && (
           <div className='bg-destructive/15 text-destructive mb-8 rounded-md p-4 text-sm'>
-            {errorMsg}
+            {displayError}
           </div>
         )}
 
@@ -76,8 +110,12 @@ export function DownloadManager() {
                   {videoInfo.uploader} • {Math.round(videoInfo.duration / 60)} 分钟
                 </p>
                 <div className='text-sm'>
-                  <p className='font-semibold mb-2'>找到 {videoInfo.formats.length} 个串流格式</p>
-                  <p className='text-muted-foreground text-xs'>目前为预览阶段，下载功能即将加入</p>
+                  <p className='font-semibold mb-2'>
+                    找到 {videoInfo.formats.length} 个串流格式
+                  </p>
+                  <p className='text-muted-foreground text-xs'>
+                    目前为预览阶段，下载功能即将加入
+                  </p>
                 </div>
               </div>
             </div>
