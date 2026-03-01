@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 use tauri::{command, AppHandle};
 use tauri_plugin_shell::process::CommandEvent;
 use tauri_plugin_shell::ShellExt;
@@ -14,28 +15,63 @@ pub struct VideoInfo {
     pub uploader: Option<String>,
 }
 
+// 配置常量
+const SIDECAR_YT_DLP: &str = "yt-dlp";
+const SIDECAR_BUN: &str = "bun";
+const ENV_BUN_PATH: &str = "BUN_PATH";
+
+/// 获取 bun sidecar 的路径
+/// 优先从环境变量读取，否则使用可执行文件目录
+fn get_bun_path() -> PathBuf {
+    std::env::var(ENV_BUN_PATH)
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| {
+            let exe_dir = std::env::current_exe()
+                .map(|p| p.parent().unwrap().to_path_buf())
+                .unwrap_or_default();
+            exe_dir.join(SIDECAR_BUN)
+        })
+}
+
 #[command]
 pub async fn cmd_get_video_info(app: AppHandle, url: String) -> Result<String, String> {
+    log::info!("Fetching video info for URL: {}", url);
+
     // tauri_plugin_shell allows acquiring a Command bound to a registered sidecar
-    let command = app.shell().sidecar("yt-dlp").map_err(|e| e.to_string())?;
+    let command = app
+        .shell()
+        .sidecar(SIDECAR_YT_DLP)
+        .map_err(|e| {
+            log::error!("Failed to create yt-dlp command: {}", e);
+            e.to_string()
+        })?;
 
-    // Find the current executable directory to locate the bun sidecar.
-    // In Tauri v2, sidecars are placed adjacent to the executable during dev/build without their target triple suffix.
-    let exe_dir = std::env::current_exe()
-        .map(|p| p.parent().unwrap().to_path_buf())
-        .unwrap_or_default();
+    // 获取 bun 路径（支持环境变量配置）
+    let bun_path = get_bun_path();
+    log::debug!("Using bun path: {:?}", bun_path);
 
-    // Construct absolute path to bun
-    let bun_path = exe_dir.join("bun");
     let js_runtime_arg = format!("bun:{}", bun_path.to_string_lossy());
 
+    // 检查 bun 路径是否存在（开发环境提示）
+    if !bun_path.exists() {
+        log::warn!(
+            "Bun sidecar not found at: {:?}. You can set {} environment variable to override.",
+            bun_path,
+            ENV_BUN_PATH
+        );
+    }
+
     // Call yt-dlp to dump JSON info without downloading the video
+    log::debug!("Spawning yt-dlp with args: -J {}", url);
     let (mut rx, _child) = command
         .args(["-J", &url])
         .args(["--js-runtimes", &js_runtime_arg])
         .args(["--cookies-from-browser", "chrome"]) // Try resolving bot detection via browser cookies
         .spawn()
-        .map_err(|e| format!("Failed to spawn yt-dlp sidecar: {}", e))?;
+        .map_err(|e| {
+            log::error!("Failed to spawn yt-dlp sidecar: {}", e);
+            format!("Failed to spawn yt-dlp sidecar: {}", e)
+        })?;
 
     let mut output = String::new();
     let mut err_output = String::new();
@@ -46,13 +82,18 @@ pub async fn cmd_get_video_info(app: AppHandle, url: String) -> Result<String, S
                 output.push_str(&String::from_utf8_lossy(&line));
             }
             CommandEvent::Stderr(line) => {
-                err_output.push_str(&String::from_utf8_lossy(&line));
+                let err_str = String::from_utf8_lossy(&line);
+                log::debug!("yt-dlp stderr: {}", err_str);
+                err_output.push_str(&err_str);
             }
             CommandEvent::Error(err) => {
+                log::error!("Command execution error: {}", err);
                 return Err(format!("Command execution error: {}", err));
             }
             CommandEvent::Terminated(payload) => {
+                log::debug!("yt-dlp terminated with code: {:?}", payload.code);
                 if payload.code != Some(0) {
+                    log::error!("yt-dlp exited with error code: {:?}", payload.code);
                     return Err(format!("yt-dlp exited with error: {}", err_output));
                 }
             }
@@ -60,6 +101,7 @@ pub async fn cmd_get_video_info(app: AppHandle, url: String) -> Result<String, S
         }
     }
 
+    log::info!("Successfully fetched video info ({} bytes)", output.len());
     // Return the raw JSON string from yt-dlp, frontend will parse it
     Ok(output)
 }

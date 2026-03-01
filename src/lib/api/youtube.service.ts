@@ -6,6 +6,7 @@ import {
   ERROR_CODES,
 } from '@/types/youtube'
 import { isValidYouTubeUrl, cleanYouTubeUrl } from '@/lib/validators'
+import { logger } from '@/lib/logger'
 
 /**
  * 从 YouTube URL 获取视频信息
@@ -24,6 +25,8 @@ export async function getVideoInfo(url: string): Promise<VideoInfo> {
 
   // 清理 URL
   const cleanedUrl = cleanYouTubeUrl(url)
+
+  logger.info('Fetching video info:', cleanedUrl)
 
   try {
     // 调用 Rust 命令，返回原始 JSON 字符串
@@ -60,6 +63,8 @@ export async function getVideoInfo(url: string): Promise<VideoInfo> {
       })),
     }
   } catch (error) {
+    logger.error('Failed to fetch video info:', error)
+
     // 如果已经是 VideoFetchError，直接抛出
     if (error instanceof VideoFetchError) {
       throw error
