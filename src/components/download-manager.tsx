@@ -1,13 +1,28 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { useVideoInfo } from '@/hooks/use-video-info'
-import { isValidYouTubeUrl } from '@/lib/validators'
-import { getErrorMessage } from '@/lib/validators'
+import { useDebounce } from '@/hooks/use-debounce'
+import { isValidYouTubeUrl, getErrorMessage } from '@/lib/validators'
+import { VideoInfoSkeleton } from './video-info-skeleton'
 
 export function DownloadManager() {
   const [url, setUrl] = useState('')
   const [validationError, setValidationError] = useState('')
+
+  // 使用防抖优化验证体验
+  const debouncedUrl = useDebounce(url, 300)
+
+  // 防抖后自动验证
+  useEffect(() => {
+    if (debouncedUrl && !isValidYouTubeUrl(debouncedUrl)) {
+      // 只显示格式错误，不显示空错误
+      setValidationError('链接格式不正确，请检查')
+    } else if (debouncedUrl && isValidYouTubeUrl(debouncedUrl)) {
+      // 清除错误当格式正确
+      setValidationError('')
+    }
+  }, [debouncedUrl])
 
   // 使用 React Query 获取视频信息
   const {
@@ -91,7 +106,9 @@ export function DownloadManager() {
 
         {/* Info Card */}
         <div className='bg-muted/50 rounded-xl p-8 flex border border-dashed'>
-          {!videoInfo ? (
+          {isLoading ? (
+            <VideoInfoSkeleton />
+          ) : !videoInfo ? (
             <div className='flex flex-1 items-center justify-center'>
               <p className='text-muted-foreground'>视频信息将显示在这里</p>
             </div>

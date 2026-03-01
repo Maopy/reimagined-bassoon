@@ -10,6 +10,7 @@ import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/s
 
 import { useNavigationStore } from '@/stores/navigation'
 import { ROUTES } from '@/config/navigation'
+import { ErrorBoundary } from '@/components/error-boundary'
 
 export default function Page() {
   const { currentRoute } = useNavigationStore()
@@ -35,7 +36,9 @@ export default function Page() {
             </Breadcrumb>
           </div>
         </header>
-        {CurrentPage}
+        <ErrorBoundary>
+          {CurrentPage}
+        </ErrorBoundary>
       </SidebarInset>
     </SidebarProvider>
   )

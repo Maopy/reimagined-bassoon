@@ -5,7 +5,9 @@ use tauri_plugin_shell::ShellExt;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct VideoInfo {
+    #[serde(default)]
     pub id: String,
+    #[serde(default)]
     pub title: String,
     pub thumbnail: Option<String>,
     pub duration: Option<u32>,
@@ -113,5 +115,82 @@ mod tests {
         assert_eq!(parsed.id, "12345");
         assert_eq!(parsed.duration, None);
         assert_eq!(parsed.uploader, None);
+    }
+
+    #[test]
+    fn test_video_info_empty_json() {
+        // Given empty JSON object
+        let json_str = "{}";
+
+        // When - should still deserialize with defaults
+        let parsed: VideoInfo = serde_json::from_str(json_str).expect("Failed to deserialize JSON");
+
+        // Then
+        assert_eq!(parsed.id, "");
+        assert_eq!(parsed.title, "");
+        assert_eq!(parsed.thumbnail, None);
+        assert_eq!(parsed.duration, None);
+        assert_eq!(parsed.uploader, None);
+    }
+
+    #[test]
+    fn test_video_info_complex_json() {
+        // Given complex JSON with nested objects (yt-dlp output)
+        let mocked_output = json!({
+            "id": "abc123",
+            "title": "Test Video",
+            "thumbnail": "https://i.ytimg.com/vi/abc123/maxresdefault.jpg",
+            "duration": 3600,
+            "uploader": "Test Channel",
+            "uploader_id": "UCxxx",
+            "upload_date": "20240101",
+            "description": "This is a test video",
+            "view_count": 1000000,
+            "like_count": 50000,
+            "formats": [
+                {
+                    "format_id": "137",
+                    "ext": "mp4",
+                    "resolution": "1920x1080",
+                    "fps": 60,
+                    "vcodec": "avc1.640028",
+                    "acodec": "none"
+                }
+            ]
+        });
+
+        let json_str = mocked_output.to_string();
+
+        // When
+        let parsed: VideoInfo =
+            serde_json::from_str(&json_str).expect("Failed to deserialize JSON");
+
+        // Then - should only extract relevant fields
+        assert_eq!(parsed.id, "abc123");
+        assert_eq!(parsed.title, "Test Video");
+        assert_eq!(parsed.duration, Some(3600));
+    }
+
+    #[test]
+    fn test_video_info_special_chars() {
+        // Given JSON with special characters and unicode
+        let mocked_output = json!({
+            "id": "test_123-abc",
+            "title": "Test Video 🎵 日本語",
+            "thumbnail": "https://example.com/thumb?size=large",
+            "duration": 0,
+            "uploader": "Channel & Co."
+        });
+
+        let json_str = mocked_output.to_string();
+
+        // When
+        let parsed: VideoInfo =
+            serde_json::from_str(&json_str).expect("Failed to deserialize JSON");
+
+        // Then
+        assert_eq!(parsed.id, "test_123-abc");
+        assert_eq!(parsed.title, "Test Video 🎵 日本語");
+        assert_eq!(parsed.uploader, Some("Channel & Co.".to_string()));
     }
 }
